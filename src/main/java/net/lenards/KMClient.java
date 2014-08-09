@@ -1,14 +1,15 @@
 package net.lenards;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.net.URLConnection;
+import java.util.HashMap;
 import java.util.Map;
 
 public class KMClient {
-	private URL hostUrl;
+	private String hostUrl;
 	private String apiKey; 
 	
 	public KMClient(String key) {
@@ -16,39 +17,61 @@ public class KMClient {
 	}
 	
 	public KMClient(String key, String trackingHost) {
-		// oh ... I got how URL can blow up with a malformed URL exception...
-		try {
-			hostUrl = new URL(trackingHost);
+			hostUrl = trackingHost;
 			apiKey = key;
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			// UGH ... 
-		}
 	}
 	
 	public boolean record(String person, String event) {
-		return false;
+		return record(person, event, null, -1);
 	}
 	
 	public boolean record(String person, String event, Map<String, String> properties) {
-		return false;
+		return record(person, event, properties, -1);
 	}
 	
 	public boolean record(String person, String event, Map<String, String> properties, long timestamp) {
-		return false;
+		// TODO add some empty value checks and whatnot...
+		Map<String, String> params = new HashMap<String, String>();
+		params.put(TrackingRequest.API_KEY, this.apiKey);
+		params.put(TrackingRequest.PERSON_KEY, person);
+		params.put(TrackingRequest.EVENTNAME_KEY, event);
+		if (properties != null && properties.size() > 0) {
+			params.putAll(properties);
+		}
+		if (timestamp > 0) {
+			params.put(TrackingRequest.TIMESTAMP_KEY, ""+timestamp);
+			params.put(TrackingRequest.TIME_FLAG_KEY, ""+1);
+		}
+		int status = TrackingRequest.record(this.hostUrl, params);
+		return status == 200;
+
 	}
 		
 	public boolean set(String person, Map<String, String> properties) {
-		return false;
+		return set(person, properties, -1);
 	}
 	
 	public boolean set(String person, Map<String, String> properties, long timestamp) {
-		return false;
+		Map<String, String> params = new HashMap<String, String>();
+		params.put(TrackingRequest.API_KEY, this.apiKey);
+		params.put(TrackingRequest.PERSON_KEY, person);
+		if (timestamp > 0) {
+			params.put(TrackingRequest.TIMESTAMP_KEY, ""+timestamp);
+			params.put(TrackingRequest.TIME_FLAG_KEY, ""+1);
+		}
+		params.putAll(properties);
+		int status = TrackingRequest.set(this.hostUrl, params);
+		return status == 200;
 	}
 	
 	public boolean alias(String person, String identity) {
-		return false;
+		// TODO need to verify that neither is empty before performing operation
+		Map<String, String> params = new HashMap<String, String>();
+		params.put(TrackingRequest.API_KEY, this.apiKey);
+		params.put(TrackingRequest.PERSON_KEY, person);
+		params.put(TrackingRequest.EVENTNAME_KEY, identity);
+		int status = TrackingRequest.alias(this.hostUrl, params);
+		return status == 200;
 	}
 }
 
@@ -66,7 +89,32 @@ class TrackingRequest {
 	public static final String ALIAS_PATH = "a";
 	
 	public static final String charset = "UTF-8";
-	
+
+	public static int record(String hostUrl, Map<String, String> parameters) {
+		return request(RECORD_PATH, hostUrl, parameters);
+	}
+
+	public static int set(String hostUrl, Map<String, String> parameters) {
+		return request(SET_PATH, hostUrl, parameters);
+	}
+
+	public static int alias(String hostUrl, Map<String, String> parameters) {
+		return request(ALIAS_PATH, hostUrl, parameters);
+	}
+
+	private static int request(String operation, String hostUrl, Map<String, String> parameters) {
+		String queryString = formatQueryString(parameters).toString();
+
+		try {
+			HttpURLConnection conn = (HttpURLConnection)new URL(hostUrl + "/" + operation + "?" + queryString).openConnection();
+			return conn.getResponseCode();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return 418; // I am a TEAPOT!
+	}
+
 	public static StringBuilder formatQueryString(Map<String, String> parameters) {
 		StringBuilder qs = new StringBuilder();
 		for (Map.Entry<String, String> kv : parameters.entrySet()) {
